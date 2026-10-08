@@ -1,0 +1,31 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Terraform ---
+# .terraform.lock.hcl is deliberately tracked: it pins provider versions and checksums.
+.terraform/
+*.tfvars
+*.tfstate
+*.tfstate.*
+# A saved plan carries every variable value, the Jira token included.
+tfplan
+*.tfplan
+crash.log
+crash.*.log
+
+# --- Build and run output ---
+lambda_package.zip
+out/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+# Scratch notes assistant tooling leaves behind; they name things the project should not.
+.omo/

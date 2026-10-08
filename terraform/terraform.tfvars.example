@@ -1,0 +1,33 @@
+# Step 3: deploy to AWS.
+# Copy to terraform.tfvars, replace everything in {braces}, then:  chmod 600 terraform.tfvars
+# Terraform loads it on its own; nothing to export.
+#
+# The values below also appear in ../.env, which step 2 uses. Keep the
+# two files in step: step 2 only rehearses step 3 if both describe the same project.
+# Everything else has a default; see variables.tf.
+
+# --- Jira ---
+jira_base_url    = "https://{your-site-name}.atlassian.net"
+jira_project_key = "{YOUR-KEY}"
+
+# --- Credentials ---
+# To keep the token out of files entirely, delete the line below and export it per session:
+#   export TF_VAR_jira_api_token="$JIRA_API_TOKEN"
+jira_email     = "{your-atlassian-email}"
+jira_api_token = "" # the long string Atlassian showed once, today ATATT... - not the name you gave it
+
+# --- Email ---
+# Both must be addresses you control: SES sends each a confirmation link. One Gmail inbox
+# covers both - your.address@gmail.com sends, your.address+project.lead@gmail.com receives.
+report_sender    = "{your-email-address}"
+report_recipient = "{project-lead-email-address}"
+
+# --- Optional filters ---
+# Comma-separated Jira names, for example Bug,Task. Empty counts everything.
+jira_issue_types = ""
+jira_priorities  = ""
+
+# --- Only here ---
+# The profile from `aws configure --profile`. Leave empty in CI, where credentials come
+# from the environment or an assumed role.
+aws_profile = "jira-report"

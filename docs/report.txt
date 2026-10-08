@@ -1,0 +1,39 @@
+[KAN] Jira report 1 Oct to 7 Oct 2026
+
+Project:  KAN
+Window:   2026-10-01 00:00 to 2026-10-08 00:00 (Europe/Berlin)
+
+Created:   10
+Resolved:  3
+Open now:  7
+
+Created:
+  https://acme.atlassian.net/browse/KAN-10  Replace hard-coded credentials in the deployment pipeline
+  https://acme.atlassian.net/browse/KAN-9  Automate the weekly backup restore test
+  https://acme.atlassian.net/browse/KAN-8  Tag untagged resources with a cost centre
+  https://acme.atlassian.net/browse/KAN-7  Upgrade the staging database to the current engine version
+  https://acme.atlassian.net/browse/KAN-6  Investigate intermittent 502 responses from the API gateway
+  and 5 more: https://acme.atlassian.net/issues/?jql=project%20%3D%20%22KAN%22%20AND%20created%20%3E%3D%20%222026-10-01%2000%3A00%22%20AND%20created%20%3C%20%222026-10-08%2000%3A00%22
+
+Resolved:
+  https://acme.atlassian.net/browse/KAN-8  Tag untagged resources with a cost centre
+  https://acme.atlassian.net/browse/KAN-4  Document the on-call escalation path
+  https://acme.atlassian.net/browse/KAN-3  Reduce log retention from indefinite to 30 days
+
+Open now:
+  https://acme.atlassian.net/browse/KAN-10  Replace hard-coded credentials in the deployment pipeline
+  https://acme.atlassian.net/browse/KAN-9  Automate the weekly backup restore test
+  https://acme.atlassian.net/browse/KAN-7  Upgrade the staging database to the current engine version
+  https://acme.atlassian.net/browse/KAN-6  Investigate intermittent 502 responses from the API gateway
+  https://acme.atlassian.net/browse/KAN-5  Add readiness and liveness probes to the payments service
+  and 2 more: https://acme.atlassian.net/issues/?jql=project%20%3D%20%22KAN%22%20AND%20statusCategory%20%21%3D%20Done
+
+Open now is counted when the report runs, not at the end of the window.
+An issue created and resolved inside the window appears in both figures.
+
+JQL used:
+  created: project = "KAN" AND created >= "2026-10-01 00:00" AND created < "2026-10-08 00:00"
+  resolved: project = "KAN" AND resolved >= "2026-10-01 00:00" AND resolved < "2026-10-08 00:00"
+  open: project = "KAN" AND statusCategory != Done
+
+Generated 2026-10-08 19:52 CEST

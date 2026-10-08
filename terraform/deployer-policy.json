@@ -1,0 +1,64 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AccountLookupAndSesIdentities",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "logs:DescribeLogGroups",
+        "ses:CreateEmailIdentity",
+        "ses:DeleteEmailIdentity",
+        "ses:GetEmailIdentity",
+        "ses:TagResource",
+        "ses:UntagResource",
+        "ses:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OurResourcesOnly",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:*",
+        "lambda:*",
+        "scheduler:*",
+        "logs:*",
+        "budgets:ViewBudget",
+        "budgets:ModifyBudget",
+        "budgets:ListTagsForResource",
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:DeleteRole",
+        "iam:TagRole",
+        "iam:ListRoleTags",
+        "iam:PutRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:*:*:secret:jira-report-*",
+        "arn:aws:lambda:*:*:function:jira-report-*",
+        "arn:aws:scheduler:*:*:schedule/default/jira-report-*",
+        "arn:aws:logs:*:*:log-group:/aws/lambda/jira-report-*",
+        "arn:aws:budgets::*:budget/jira-report-*",
+        "arn:aws:iam::*:role/jira-report-*"
+      ]
+    },
+    {
+      "Sid": "NeverWriteResourcePolicies",
+      "Effect": "Deny",
+      "Action": [
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "secretsmanager:PutResourcePolicy",
+        "secretsmanager:DeleteResourcePolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
