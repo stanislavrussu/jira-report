@@ -28,7 +28,7 @@ The whole program is one file, [jira_report.py](jira_report.py), written against
 standard library only. There is nothing to `pip install` and no build step — Terraform zips that
 single file and deploys it.
 
-You will do three things, in this order: create a Jira project and an API token in a browser, run
+You will do three things, in this order: create a Jira space and an API token in a browser, run
 the report on your own machine, then deploy it to AWS. Allow about half an hour, most of it spent
 waiting for confirmation emails.
 
@@ -46,9 +46,9 @@ AWS is an infrastructure problem, not a logic problem. That halves the places yo
 | A3 | Authentication is an Atlassian account **email + API token** over HTTP Basic. Not OAuth, which needs a human to approve a grant and so cannot run unattended. |
 | A4 | The script only ever reads, and the token it uses carries read scopes only — see [12. Security](#12-security). |
 | A5 | The reporting window is the last 7 full days, `[Monday−7d 00:00, Monday 00:00)` in Europe/Berlin. The end is excluded, so consecutive weeks never overlap. |
-| A6 | **"Open"** means `statusCategory != Done`. Status *categories* survive workflow customisation; literal status names like `Open` do not. |
-| A7 | **"Resolved"** means the issue got a resolution inside the window. An issue created *and* resolved in the same week is counted in both figures, and the email says so. |
-| A8 | **"Open"** is a snapshot at the moment of the run, not at the window's end. The email repeats this to its reader. |
+| A6 | **"Open"** means `statusCategory != Done`. Every Jira status belongs to one of three fixed categories, so this holds whatever a space calls its columns. |
+| A7 | **"Resolved"** means the issue got a resolution inside the reporting window. One created *and* resolved inside the same window is counted in both figures, and the email says so. |
+| A8 | **"Open"** is a snapshot at the moment of the run, not at the end of the reporting window. The email repeats this to its reader. |
 | A9 | AWS region `eu-central-1`. Amazon SES runs in **sandbox** mode, which only delivers to addresses you have confirmed — enough for one known recipient, and it avoids requesting production access. |
 | A10 | The Lambda has no VPC. It reaches the internet outbound only; nothing can reach it inbound. |
 
@@ -113,7 +113,9 @@ Both roles are least-privilege: every statement names an exact ARN rather than a
 function can read its own secret, send only from the configured address, and write only to its own
 log group. The scheduler's role may invoke this one function, and its trust policy is pinned to
 this account with `aws:SourceAccount`, so a scheduler in someone else's account cannot borrow it.
-The policy documents are in [terraform/main.tf](terraform/main.tf).
+Both roles and their policy documents are declared in [terraform/main.tf](terraform/main.tf). The
+policy that lets *you* run Terraform is a separate file and a separate concern — see
+[7.1](#71-give-yourself-permission-to-deploy).
 
 The function is not in a VPC. It reaches three hosts on port 443 — your Jira site, Secrets Manager
 and SES — through an AWS-managed interface, and nothing can reach it inbound.
@@ -123,12 +125,12 @@ and SES — through an AWS-managed interface, and nothing can reach it inbound.
 ## 4. What you need
 
 Install these first. The version column is the lowest that works, not what to install — newer is
-fine, and each row says what this project was verified on. The install column is macOS; all four
-tools ship for Linux and Windows too, and nothing below depends on how they were installed.
+fine, and each row says what this project was verified on. The install column is macOS; all of
+them ship for Linux and Windows too, and nothing below depends on how they were installed.
 
 | Tool | Minimum | Why | Install on macOS | Check it worked |
 |---|---|---|---|---|
-| Web browser | a current release | The Atlassian and AWS consoles. Both vendors support current browsers on a rolling basis rather than naming a fixed minimum version. Walked through on Chrome 155.0.8059.40, Firefox 157.0.1 and Safari 27.0, on macOS 26.7.1. | — | — |
+| Web browser | a current release | The Atlassian and AWS consoles. Both vendors support current browsers on a rolling basis rather than naming a fixed minimum version. Walked through on Chrome 155.0.8059.40, Firefox 157.0.1 and Safari 27.0, on macOS 26.7.1. | already installed (Safari), or `brew install --cask google-chrome` | **Safari** > **About Safari**, or **About** under any browser's own menu |
 | Python | **3.9** | Runs the report. 3.9 is the floor because the `zoneinfo` module, which does all the time-zone arithmetic, was added in that release. Verified on 3.9.6 — the version macOS already ships as `/usr/bin/python3`. | already installed, or `brew install python@3.14` | `python3 --version` |
 | AWS CLI | **2.x** | Credentials and reading logs. Verified on 2.37.10, the version Homebrew ships. | `brew install awscli` | `aws --version` |
 | Terraform | **1.11** | Creates every AWS resource. 1.11 is the first version with write-only arguments, which keep the API token out of Terraform's state file. Verified on 1.16.4. | `brew install terraform` | `terraform version` |
@@ -162,15 +164,15 @@ Lambda runtime.
 3. When it asks for a site name, type `acme`. Your site becomes `https://acme.atlassian.net`.
    Site names are globally unique, so if it is taken pick another and use that name everywhere
    below instead.
-4. Choose **Jira** when asked which product to set up. Skip the sample project it offers.
+4. Choose **Jira** when asked which product to set up. Skip the sample it offers.
 
-### 5.2 Create the project
+### 5.2 Create the space
 
 1. Open `https://acme.atlassian.net/jira/projects`.
-2. Click **Create project**, choose **Scrum**, click **Use template**, then
-   **Select a company-managed project**.
+2. Click **Create space**, choose **Scrum**, click **Use template**, then pick the
+   **company-managed** option.
 3. Name it `Acme Platform`. The key fills in automatically as `ACME`. Click **Next**, then
-   **Create project**.
+   **Create space**.
 
 ### 5.3 Add the person who will receive the report
 
@@ -183,7 +185,7 @@ Lambda runtime.
    play both roles. Outlook and Proton do the same; if your provider does not, use any second
    address you can read.
 3. Open the invitation from your inbox and finish the signup so the account becomes active.
-4. In Jira, open **Project settings → Details**, set **Project lead** to that user, and save.
+4. In Jira, open **Space settings → Details**, set **Space owner** to that user, and save.
 
 ### 5.4 Set the time zone — do not skip this
 
@@ -256,24 +258,30 @@ the two disagree, so a mistake here fails loudly instead of returning plausible 
 
 ### 5.6 Create some work items
 
-An empty project produces a report full of zeroes, which proves nothing. Open the project's
-**Backlog**, type a summary in the **Create issue** row at the bottom of the list and press
+An empty space produces a report full of zeroes, which proves nothing. Open the space's
+**Backlog**, type a summary in the **Create** row at the bottom of the list and press
 Enter, repeating until you have eight or ten. Then open the **Board**, drag two or three cards
-into the **Done** column, so that all three figures come out non-zero.
+into the **Done** column.
+
+The reporting window ends at last midnight, so work you create today reaches **Open now**
+immediately but **Created** and **Resolved** only tomorrow. To see all three non-zero straight
+away, add `--since` and `--until` spanning today to the command in step 6.
 
 **Check that each one got a Resolution.** The board column follows `status`, but *Resolved*
 follows the separate **Resolution** field, and the two can disagree — most often on the very first
-transition into Done in a new project. Verify with the query at the end of
+transition into Done in a new space. Verify with the query at the end of
 [section 10](#10-troubleshooting); if an item shows `NONE`, drag it out of Done and back in.
 
-Jira says *work items*; its API, its query language and this report all say *issues*. Same thing.
+Jira's interface now says *work items* and *spaces*, while its URLs, REST API and query language
+still say *issues* and *projects* — the address bar reads `/projects/ACME/` under a page headed
+**Spaces**. This report follows the API.
 
 ---
 
 ## 6. Step 2 — run it on your machine
 
 ```bash
-git clone <repository-url> jira-report
+git clone https://github.com/stanislavrussu/jira-report.git
 cd jira-report
 cp .env.example .env && chmod 600 .env
 ```
@@ -288,22 +296,24 @@ python3 jira_report.py
 
 ```
 INFO  account=Jira Admin timezone=Europe/Berlin
-INFO  bucket=created count=17 jql=project = "ACME" AND created >= "2026-09-28 00:00" AND …
-INFO  bucket=resolved count=11 jql=…
-INFO  bucket=open count=23 jql=project = "ACME" AND statusCategory != Done
+INFO  bucket=created count=10 jql=project = "ACME" AND created >= "2026-09-28 00:00" AND …
+INFO  bucket=resolved count=3 jql=…
+INFO  bucket=open count=7 jql=project = "ACME" AND statusCategory != Done
 
 [ACME] Jira report 28 Sep to 4 Oct 2026
 
 Project:  ACME
 Window:   2026-09-28 00:00 to 2026-10-05 00:00 (Europe/Berlin)
 
-Created:   17
-Resolved:  11
-Open now:  23
+Created:   10
+Resolved:  3
+Open now:  7
 ```
 
-Nothing is sent. Compare the three numbers against the project in your browser — this is the
-moment to catch a wrong project key or a wrong time zone.
+Nothing is sent. The output carries on past this with the newest issues behind each figure, the
+two caveats, the exact JQL and a `Generated` line; [docs/report.txt](docs/report.txt) is a
+complete one. Compare the three numbers against the space in your browser — this is the moment to
+catch a wrong project key or a wrong time zone.
 
 ```bash
 python3 jira_report.py                        # print the report, send nothing
@@ -470,7 +480,7 @@ the script.
 Both entry points share `run()` on purpose. It means the local test in step 2 exercises exactly
 the code that will run in AWS, rather than a parallel copy of it.
 
-### 8.2 The window
+### 8.2 The reporting window
 
 A run at 10:00 on Monday 5 October 2026 in Europe/Berlin covers
 `[2026-09-28 00:00, 2026-10-05 00:00)`, the end excluded. The email heading says the same thing
@@ -515,7 +525,7 @@ and the gateway identifies a site by cloud ID rather than by name. So the progra
 | Value | Example | Used for |
 |---|---|---|
 | `site_url` | `https://acme.atlassian.net` | The links in the email — a person clicks them |
-| `api_base` | `https://api.atlassian.com/ex/jira/0800a7a6-…` | Every REST call |
+| `api_base` | `https://api.atlassian.com/ex/jira/{cloudId}` | Every REST call |
 
 Only the site address is configured; `resolve_api_base` derives the other at startup from
 `/_edge/tenant_info`, which needs no authentication.
@@ -547,7 +557,7 @@ not resolve; the screenshot is unmodified.
 
 | What you see | Why | Fix |
 |---|---|---|
-| `HTTP 401` with `Client must be authenticated…` | A scoped token was sent to the site address instead of the gateway | Call `https://api.atlassian.com/ex/jira/<cloudId>/…` — see 8.3 |
+| `HTTP 401` with `Client must be authenticated…` | A scoped token was sent to the site address instead of the gateway | Call `https://api.atlassian.com/ex/jira/{cloudId}/…` — see 8.3 |
 | `jq: parse error: Invalid numeric literal` | Jira returned a plain-text error, not JSON | Re-run the same request without `| jq` to read it |
 | `HTTP 401` otherwise | The token is wrong, expired, or you used your Atlassian password instead of a token | Make a new token and apply it as described in step 5.5 |
 | `HTTP 400 … unbounded` | A query lost its `project = …` clause | Every query must keep it — see 8.3 |
@@ -598,7 +608,7 @@ it. `terraform destroy` removes it along with everything it was watching.
   excludes plan files too.
 * The token carries two read-only scopes, `read:jira-user` and `read:jira-work`, so it cannot
   change anything in Jira even though the account that issued it is a site administrator. What
-  scopes cannot do is confine it to one project — that needs a dedicated account holding only
+  scopes cannot do is confine it to one space — that needs a dedicated account holding only
   **Browse Projects** there, which is a different account rather than different code.
 * `JIRA_PROJECT_KEY`, the optional type and priority filters, and the cloud ID returned by the
   site are each matched against a strict pattern before reaching a query or a URL, and
